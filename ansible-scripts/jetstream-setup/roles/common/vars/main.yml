@@ -1,0 +1,19 @@
+---
+hadoop_user: isurues
+hadoop_download_url: http://apache.claz.org/hadoop/common/hadoop-2.8.1/hadoop-2.8.1.tar.gz
+nodes:
+  - hostname: hadoop-master
+    ip: 172.27.17.20
+  - hostname: hadoop-slave1
+    ip: 172.27.17.10
+  - hostname: hadoop-slave2
+    ip: 172.27.17.4
+  - hostname: hadoop-slave3
+    ip: 172.27.17.9
+  - hostname: hadoop-slave4
+    ip: 172.27.17.18
+kafka_nodes:
+  - hostname: kafka1
+    ip: 172.27.17.11
+  - hostname: kafka2
+    ip: 172.27.17.7

@@ -1,0 +1,4 @@
+- name: Copy private key into place
+  template: src=id_rsa dest=/home/{{ flink_user }}/.ssh/id_rsa owner={{ flink_user }} mode=0600
+
+- copy: src=software/flink-consumer-1.0.jar dest=/home/{{ flink_user }}/flink/flink-1.3.2

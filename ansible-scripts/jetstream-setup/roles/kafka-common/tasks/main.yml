@@ -1,0 +1,35 @@
+---
+# install jdk 8
+- file: path=/home/{{ kafka_user }}/jdk state=directory owner={{ kafka_user }} mode=750
+- copy: src=software/jdk-8u144-linux-x64.tar.gz dest=/home/{{ kafka_user }}/jdk
+- unarchive: src=/home/{{ kafka_user }}/jdk/jdk-8u144-linux-x64.tar.gz dest=/home/{{ kafka_user }}/jdk owner={{ kafka_user}} creates=/home/{{ kafka_user }}/jdk/jdk1.8.0_144 copy=no
+- lineinfile: dest=/home/{{ kafka_user }}/.bashrc regexp="^export JAVA_HOME" line="export JAVA_HOME=/home/{{ kafka_user }}/jdk/jdk1.8.0_144"
+- lineinfile: dest=/home/{{ kafka_user }}/.bashrc regexp="PATH=" line="export PATH=$PATH:$JAVA_HOME/bin"
+
+# install kafka
+- file: path=/home/{{ kafka_user }}/kafka state=directory owner={{ kafka_user}} mode=750
+- name: Download kafka
+  get_url: url={{ kafka_download_url }} dest=/home/{{ kafka_user }}/kafka/kafka_2.11-0.11.0.1.tgz
+
+- name: Extract kafka archive
+  unarchive: src=/home/{{ kafka_user }}/kafka/kafka_2.11-0.11.0.1.tgz dest=/home/{{ kafka_user }}/kafka owner={{ kafka_user}} copy=no
+
+- command: mv /home/{{ kafka_user }}/kafka/kafka_2.11-0.11.0.1 /home/{{ kafka_user }}/kafka/kafka11 creates=/home/{{ kafka_user }}/kafka/kafka11 removes=/home/{{ kafka_user }}/kafka/kafka_2.11-0.11.0.1
+
+# name: Build hosts file
+- name: "Build hosts file"
+  lineinfile: dest=/etc/hosts regexp='{{ item.hostname }}' line="{{ item.ip }} {{ item.hostname }}" state=present
+  with_items: "{{ nodes }}"
+
+- lineinfile: dest=/etc/hosts regexp='127.0.1.1' state=absent
+
+- file: path=/home/{{ kafka_user }}/kafka/kafka-logs state=directory owner={{ kafka_user}} mode=750
+
+- name: Copy kafka config file
+  template: src=server.properties dest=/home/{{ kafka_user }}/kafka/kafka11/config/server.properties owner={{ kafka_user }}
+
+- name: Copy zookeeper startup script
+  template: src=zookeeper-server-start.sh dest=/home/{{ kafka_user }}/kafka/kafka11/bin/zookeeper-server-start.sh owner={{ kafka_user }}
+
+- name: Copy kafka startup script
+  template: src=kafka-server-start.sh dest=/home/{{ kafka_user }}/kafka/kafka11/bin/kafka-server-start.sh owner={{ kafka_user }}

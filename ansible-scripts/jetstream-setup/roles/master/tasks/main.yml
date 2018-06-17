@@ -1,0 +1,11 @@
+# generate ssh key
+#- user: name={{ hadoop_user }} generate_ssh_key=yes ssh_key_bits=2048 ssh_key_file=.ssh/id_rsa
+
+# copy ssh key from ansible host
+- name: Copy private key into place
+  template: src=id_rsa dest=/home/{{ hadoop_user }}/.ssh/id_rsa owner={{ hadoop_user }} mode=0600
+
+- name: Copy slaves into place
+  template: src=slaves dest=/home/{{ hadoop_user }}/hadoop/hadoop-2.8.1/etc/hadoop/slaves owner={{ hadoop_user }}
+
+- copy: src=software/kakfa-producer-1.0-jar-with-dependencies.jar dest=/home/{{ hadoop_user }}/hadoop/hadoop-2.8.1

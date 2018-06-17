@@ -1,0 +1,39 @@
+---
+# install jdk 8
+- file: path=/home/{{ flink_user }}/jdk state=directory owner={{ flink_user }} mode=750
+- copy: src=software/jdk-8u144-linux-x64.tar.gz dest=/home/{{ flink_user }}/jdk
+- unarchive: src=/home/{{ flink_user }}/jdk/jdk-8u144-linux-x64.tar.gz dest=/home/{{ flink_user }}/jdk owner={{ flink_user}} creates=/home/{{ flink_user }}/jdk/jdk1.8.0_144 copy=no
+- lineinfile: dest=/home/{{ flink_user }}/.bashrc regexp="^export JAVA_HOME" line="export JAVA_HOME=/home/{{ flink_user }}/jdk/jdk1.8.0_144"
+- lineinfile: dest=/home/{{ flink_user }}/.bashrc regexp="PATH=" line="export PATH=$PATH:$JAVA_HOME/bin"
+
+# install flink
+- file: path=/home/{{ flink_user }}/flink state=directory owner={{ flink_user}} mode=750
+- name: Download flink
+  get_url: url={{ flink_download_url }} dest=/home/{{ flink_user }}/flink/flink-1.3.2-bin-hadoop27-scala_2.11.tgz
+
+- name: Extract flink archive
+  unarchive: src=/home/{{ flink_user }}/flink/flink-1.3.2-bin-hadoop27-scala_2.11.tgz dest=/home/{{ flink_user }}/flink owner={{ flink_user}} creates=/home/{{ flink_user }}/flink/flink-1.3.2 copy=no
+
+- name: "Build hosts file"
+  lineinfile: dest=/etc/hosts regexp='{{ item.hostname }}' line="{{ item.ip }} {{ item.hostname }}" state=present
+  with_items: "{{ nodes }}"
+
+- lineinfile: dest=/etc/hosts regexp='{{ item.hostname }}' line="{{ item.ip }} {{ item.hostname }}" state=present
+  with_items: "{{ kafka_nodes }}"
+
+- lineinfile: dest=/etc/hosts regexp='{{ item.hostname }}' line="{{ item.ip }} {{ item.hostname }}" state=present
+  with_items: "{{ hadoop_nodes }}"
+
+- lineinfile: dest=/etc/hosts regexp='127.0.1.1' state=absent
+
+- name: Copy slaves into place
+  template: src=slaves dest=/home/{{ flink_user }}/flink/flink-1.3.2/conf/slaves owner={{ flink_user }}
+
+- name: Copy kafka properties file
+  template: src=kafka.properties dest=/home/{{ flink_user }}/flink/kafka.properties owner={{ flink_user }}
+
+- name: Copy flink config file
+  template: src=flink-conf.yaml dest=/home/{{ flink_user }}/flink/flink-1.3.2/conf/flink-conf.yaml owner={{ flink_user }}
+
+- name: Copy master public key
+  authorized_key: user={{ flink_user }} state=present key="{{ lookup('file', '/Users/isuru/research/ansible/jetstream-setup/roles/flink-common/templates/master_rsa_pub') }}"

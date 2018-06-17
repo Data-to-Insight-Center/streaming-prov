@@ -1,0 +1,57 @@
+---
+- name: Install hadoop master node
+  hosts: hadoop-master
+  remote_user: isurues
+  become: true
+  become_method: sudo
+
+  roles:
+    - common
+    - master
+
+- name: Install hadoop slave nodes
+  hosts: hadoop-slave
+  remote_user: isurues
+  become: true
+  become_method: sudo
+
+  roles:
+    - common
+
+- name: Install kafka master node
+  hosts: kafka-master
+  remote_user: isurues
+  become: true
+  become_method: sudo
+
+  roles:
+    - kafka-common
+    - kafka-zookeeper
+
+- name: Install kafka slave nodes
+  hosts: kafka-slave
+  remote_user: isurues
+  become: true
+  become_method: sudo
+
+  roles:
+    - kafka-common
+
+- name: Install flink master node
+  hosts: flink-master
+  remote_user: isurues
+  become: true
+  become_method: sudo
+
+  roles:
+    - flink-common
+    - flink-master
+
+- name: Install flink slave nodes
+  hosts: flink-slave
+  remote_user: isurues
+  become: true
+  become_method: sudo
+
+  roles:
+    - flink-common

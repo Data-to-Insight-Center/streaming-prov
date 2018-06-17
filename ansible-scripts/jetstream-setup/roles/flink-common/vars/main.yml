@@ -1,0 +1,20 @@
+---
+flink_user: isurues
+flink_download_url: http://apache.spinellicreations.com/flink/flink-1.3.2/flink-1.3.2-bin-hadoop27-scala_2.11.tgz
+nodes:
+  - hostname: flink-master
+    ip: 172.27.17.14
+  - hostname: flink-slave1
+    ip: 172.27.17.6
+  - hostname: flink-slave2
+    ip: 172.27.17.21
+  - hostname: flink-slave3
+    ip: 172.27.17.13
+kafka_nodes:
+  - hostname: kafka1
+    ip: 172.27.17.11
+  - hostname: kafka2
+    ip: 172.27.17.7
+hadoop_nodes:
+  - hostname: hadoop-master
+    ip: 172.27.17.20

@@ -1,0 +1,22 @@
+[hadoop-master]
+100.165.10.22     kafka_partition=0
+
+[hadoop-slave]
+100.165.10.210     kafka_partition=0
+100.165.10.203     kafka_partition=1
+100.165.10.209     kafka_partition=2
+100.165.10.213     kafka_partition=3
+
+[kafka-master]
+100.165.10.219     broker_id=0     host=kafka1
+
+[kafka-slave]
+100.165.10.181      broker_id=1     host=kafka2
+
+[flink-master]
+100.165.10.190
+
+[flink-slave]
+100.165.10.151
+100.165.10.215
+100.165.10.205
