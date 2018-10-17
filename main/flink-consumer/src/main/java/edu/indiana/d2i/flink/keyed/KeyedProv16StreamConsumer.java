@@ -14,8 +14,9 @@ import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer010;
 import org.apache.flink.dropwizard.metrics.DropwizardMeterWrapper;
 
 import java.util.Properties;
+import java.util.UUID;
 
-public class KeyedProvStreamConsumer {
+public class KeyedProv16StreamConsumer {
 
     public static Properties fileProps;
     static {
@@ -24,13 +25,17 @@ public class KeyedProvStreamConsumer {
     }
 
     public static void main(String[] args) throws Exception {
+        int localParallelism = Integer.parseInt(fileProps.getProperty("local.parallelism"));
+        int globalParallelism = Integer.parseInt(fileProps.getProperty("global.parallelism"));
+
         // create execution environment
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        env.setParallelism(3);
+        env.setParallelism(localParallelism);
 
         Properties properties = new Properties();
         properties.setProperty("bootstrap.servers", fileProps.getProperty("bootstrap.servers"));
         properties.setProperty("group.id", "local_consumer");
+        properties.setProperty("auto.offset.reset", "earliest");
 
         DataStream<ObjectNode> stream = env.addSource(new FlinkKafkaConsumer010<>(
                 fileProps.getProperty("kafka.topic"), new ProvJSONDeserializationSchema(), properties));
@@ -40,14 +45,20 @@ public class KeyedProvStreamConsumer {
             return "wasGeneratedBy".equals(edgeType) || "used".equals(edgeType);
         });
 
-        DataStream<Tuple2<String, ObjectNode>> keyedStream = filteredStream.map(new PartitionMapper());
-
-        keyedStream
-                .keyBy(0)
-                .process(new KeyedGroupLocalReducer())
-                .keyBy(0)
-                .process(new KeyedGroupGlobalReducer()).setParallelism(1)
-                .writeAsText(fileProps.getProperty("output.file.path")).setParallelism(1);
+        if ("true".equals(fileProps.getProperty("local.only")))  {
+            filteredStream
+                    .keyBy(n -> n.get("partition").asText())
+                    .process(new KeyedGroup16LocalReducer())
+                    .writeAsText(fileProps.getProperty("output.file.path"));
+        } else {
+            final boolean globalPeriodic = "true".equals(fileProps.getProperty("global.periodic.flush"));
+            filteredStream
+                    .keyBy(n -> n.get("partition").asText())
+                    .process(new KeyedGroup16LocalReducer())
+                    .keyBy(t -> t.f0)
+                    .process(globalPeriodic ? new KeyedGroup16PeriodicGlobalReducer() : new KeyedGroup16GlobalReducer()).setParallelism(globalParallelism)
+                    .writeAsText(fileProps.getProperty("output.file.path")).setParallelism(globalParallelism);
+        }
 
         env.execute();
     }

@@ -6,12 +6,12 @@ import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.streaming.api.functions.ProcessFunction;
+import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
 
 import java.util.List;
 
-public class KeyedGlobalReducer extends ProcessFunction<Tuple2<String, ProvEdge>, ProvEdge> {
+public class KeyedGroup16GlobalReducer extends KeyedProcessFunction<String, Tuple2<String, List<ProvEdge>>, ProvEdge> {
 
     private ValueState<ProvState> state;
     private static final int TIMER_INTERVAL_MS = Integer.parseInt(KeyedProvStreamConsumer.fileProps.getProperty("global.timer.interval"));
@@ -24,19 +24,23 @@ public class KeyedGlobalReducer extends ProcessFunction<Tuple2<String, ProvEdge>
     }
 
     @Override
-    public void processElement(Tuple2<String, ProvEdge> in, Context context,
+    public void processElement(Tuple2<String, List<ProvEdge>> in, Context context,
                                Collector<ProvEdge> out) throws Exception {
-//        System.out.println(getRuntimeContext().getTaskNameWithSubtasks() + ", " +
-//                getRuntimeContext().getIndexOfThisSubtask() + ", " + in.f0 + " : " + in.f1.toString());
-
         ProvState current = state.value();
         if (current == null) {
             current = new ProvState();
             current.key = in.f0;
         }
 
+        if (!current.started) {
+            current.startTime = System.currentTimeMillis();
+            current.started = true;
+        }
+
         current.count++;
-        current.handleNewEdge(in.f1);
+        current.handleNewEdgeGroup(in.f1);
+        for (ProvEdge edge : in.f1)
+            current.numBytes += edge.toJSONString().getBytes().length;
         state.update(current);
 
         current.lastModified = System.currentTimeMillis();
@@ -52,12 +56,23 @@ public class KeyedGlobalReducer extends ProcessFunction<Tuple2<String, ProvEdge>
 
         // check if this is an outdated timer or the latest timer
         if (timestamp == current.lastModified + TIMER_INTERVAL_MS) {
-            System.out.println(getRuntimeContext().getIndexOfThisSubtask() + ": emitting global results...");
+//            System.out.println(getRuntimeContext().getIndexOfThisSubtask() + ": emitting global results...");
+//            System.out.println(current.key + ": emitting global results...");
+
+            long time = current.lastModified - current.startTime;
+            float mb = (float) current.numBytes / 1000000;
+            float throughput = (float) current.numBytes / (1000 * time);
+            System.out.println(current.key + ": " + getRuntimeContext().getIndexOfThisSubtask() + ": timer: edges = " + current.edgeCount + " filtered = " +
+                    current.filteredEdgeCount + " throughput = " + throughput + "MB/s, Size = " + mb + "MB, time = " + time + "ms");
+
             for (String key : current.edgesBySource.keySet()) {
                 List<ProvEdge> edges = current.edgesBySource.get(key);
                 for (ProvEdge e : edges) {
-                    if (e.toString().contains("2811"))
-                        System.out.println(getRuntimeContext().getIndexOfThisSubtask() + ":2811 global ---> " + e.toJSONString());
+                    String source = e.getSource();
+                    if (source.startsWith("task_") && source.contains("_m_"))
+                        continue;
+//                    if (e.toString().contains("2811"))
+//                        System.out.println(getRuntimeContext().getIndexOfThisSubtask() + ":2811 global ---> " + e.toJSONString());
                     out.collect(e);
                 }
             }

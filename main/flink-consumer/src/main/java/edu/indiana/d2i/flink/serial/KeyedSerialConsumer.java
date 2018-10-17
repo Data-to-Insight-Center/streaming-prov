@@ -1,43 +1,22 @@
-/*
- * Copyright 2017 The Trustees of Indiana University
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
- * @author isuriara@indiana.edu
- */
-
 package edu.indiana.d2i.flink.serial;
 
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import edu.indiana.d2i.flink.keyed.KeyedGroupGlobalReducer;
-import edu.indiana.d2i.flink.keyed.KeyedGroupLocalReducer;
+import edu.indiana.d2i.flink.utils.Utils;
 import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.node.ObjectNode;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer010;
-import org.apache.flink.streaming.util.serialization.JSONDeserializationSchema;
+import org.apache.flink.streaming.util.serialization.JSONKeyValueDeserializationSchema;
 
-import java.io.FileInputStream;
-import java.io.IOException;
 import java.util.Properties;
 
 public class KeyedSerialConsumer {
 
     public static Properties fileProps;
     static {
-        fileProps = loadPropertiesFromFile();
+        fileProps = Utils.loadPropertiesFromFile();
         System.out.println("@@@ kafka properties loaded: " + fileProps.getProperty("bootstrap.servers"));
     }
 
@@ -51,7 +30,7 @@ public class KeyedSerialConsumer {
         properties.setProperty("group.id", "local_consumer");
 
         DataStream<ObjectNode> stream = env.addSource(new FlinkKafkaConsumer010<>(
-                fileProps.getProperty("kafka.topic"), new JSONDeserializationSchema(), properties));
+                fileProps.getProperty("kafka.topic"), new JSONKeyValueDeserializationSchema(false), properties));
 
         DataStream<ObjectNode> filteredStream = stream.filter(new FilterFunction<ObjectNode>() {
             @Override
@@ -77,17 +56,6 @@ public class KeyedSerialConsumer {
                 .writeAsText(fileProps.getProperty("output.file.path"));
 
         env.execute();
-    }
-
-    private static Properties loadPropertiesFromFile() {
-        Properties properties = new Properties();
-        try {
-//            properties.load(new FileInputStream("/home/isurues/flink/kafka.properties"));
-            properties.load(new FileInputStream("/Users/isuru/research/streaming-prov/flink-consumer/kafka.properties"));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return properties;
     }
 
 }

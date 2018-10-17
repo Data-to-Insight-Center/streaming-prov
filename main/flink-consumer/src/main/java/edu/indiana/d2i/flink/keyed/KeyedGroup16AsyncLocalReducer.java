@@ -1,36 +1,43 @@
-package edu.indiana.d2i.flink.async;
+package edu.indiana.d2i.flink.keyed;
 
-import edu.indiana.d2i.flink.keyed.KeyedProvStreamConsumer;
+import edu.indiana.d2i.flink.utils.ProvEdge;
 import edu.indiana.d2i.flink.utils.ProvState;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.node.ObjectNode;
-import org.apache.flink.streaming.api.functions.ProcessFunction;
+import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
 
-public class AsyncLocalReducerCount extends ProcessFunction<Tuple2<String, ObjectNode>, Long> {
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
+public class KeyedGroup16AsyncLocalReducer extends KeyedProcessFunction<String, ObjectNode, Tuple2<String, List<ProvEdge>>> {
 
     private ValueState<ProvState> state;
     private static final int LOCAL_LIMIT = Integer.parseInt(KeyedProvStreamConsumer.fileProps.getProperty("local.limit"));
     private static final int TIMER_INTERVAL_MS = Integer.parseInt(KeyedProvStreamConsumer.fileProps.getProperty("local.timer.interval"));
+    public final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(5);
 
     @Override
     public void open(Configuration parameters) throws Exception {
         state = getRuntimeContext().getState(new ValueStateDescriptor<>("local-state", ProvState.class));
         System.out.println("@@@ local limit = " + LOCAL_LIMIT);
         System.out.println("@@@ local timer interval = " + TIMER_INTERVAL_MS);
-        System.out.println("grouped local reducer open. task = " + getRuntimeContext().getTaskNameWithSubtasks());
+        System.out.println("grouped async local reducer open. task = " + getRuntimeContext().getTaskNameWithSubtasks());
     }
 
     @Override
-    public void processElement(Tuple2<String, ObjectNode> in, Context context,
-                               Collector<Long> out) throws Exception {
+    public void processElement(ObjectNode in, Context context,
+                               Collector<Tuple2<String, List<ProvEdge>>> out) throws Exception {
         ProvState current = state.value();
         if (current == null) {
             current = new ProvState();
-            current.key = in.f0;
+            current.key = in.get("partition").asText();
         }
 
         if (!current.started) {
@@ -38,8 +45,8 @@ public class AsyncLocalReducerCount extends ProcessFunction<Tuple2<String, Objec
             current.started = true;
         }
         current.count++;
-        current.processNotification(in.f1);
-        current.numBytes += in.f1.toString().getBytes().length;
+        current.processNotification(in);
+        current.numBytes += in.toString().getBytes().length;
         state.update(current);
         // emit on count, may be experiment with a time period too?
         if (current.count == LOCAL_LIMIT) {
@@ -52,7 +59,7 @@ public class AsyncLocalReducerCount extends ProcessFunction<Tuple2<String, Objec
     }
 
     @Override
-    public void onTimer(long timestamp, OnTimerContext ctx, Collector<Long> out)
+    public void onTimer(long timestamp, OnTimerContext ctx, Collector<Tuple2<String, List<ProvEdge>>> out)
             throws Exception {
         // get the state for the key that scheduled the timer
         ProvState current = state.value();
@@ -60,16 +67,28 @@ public class AsyncLocalReducerCount extends ProcessFunction<Tuple2<String, Objec
         if (timestamp == current.lastModified + TIMER_INTERVAL_MS) {
             System.out.println(current.key + ": timer: emitting grouped local results...");
             long time = current.lastModified - current.startTime;
-            float throughput = (float) current.numBytes / (1000 * time);
             float mb = (float) current.numBytes / 1000000;
-            System.out.println(current.key + ": timer: throughput = " + throughput + "MB/s, Size = " + mb + "MB, time = " + time + "ms");
+            float throughput = (float) current.numBytes / (1000 * time);
+            System.out.println(current.key + ": timer: edges = " + current.edgeCount + " filtered = " +
+                    current.filteredEdgeCount + " throughput = " + throughput + "MB/s, Size = " + mb + "MB, time = " + time + "ms");
             emitGroupedState(current, out);
         }
     }
 
-    private void emitGroupedState(ProvState current, Collector<Long> out) {
-        out.collect(current.count);
+    private void emitGroupedState(ProvState current, Collector<Tuple2<String, List<ProvEdge>>> out) {
+        final Map<String, List<ProvEdge>> edgesBySource = current.edgesBySource;
+        Runnable emitter = () -> {
+            for (String key : edgesBySource.keySet()) {
+                List<ProvEdge> edges = edgesBySource.get(key);
+                if (key.startsWith("task_") && key.contains("_m_")) {
+                    current.filteredEdgeCount += edges.size();
+                    continue;
+                }
+                current.edgeCount += edges.size();
+                out.collect(new Tuple2<>("global", edges));
+            }
+        };
+        scheduler.schedule(emitter, 0, TimeUnit.MILLISECONDS);
         current.clearState();
     }
-
 }

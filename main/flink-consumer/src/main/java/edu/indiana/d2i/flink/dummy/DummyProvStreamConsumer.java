@@ -1,23 +1,21 @@
-package edu.indiana.d2i.flink.keyed;
+package edu.indiana.d2i.flink.dummy;
 
 import edu.indiana.d2i.flink.utils.ProvJSONDeserializationSchema;
 import edu.indiana.d2i.flink.utils.Utils;
 import org.apache.flink.api.common.functions.FilterFunction;
-import org.apache.flink.api.common.functions.RichMapFunction;
-import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.configuration.Configuration;
-import org.apache.flink.metrics.Meter;
+import org.apache.flink.api.common.typeinfo.Types;
 import org.apache.flink.shaded.jackson2.com.fasterxml.jackson.databind.node.ObjectNode;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer010;
-import org.apache.flink.dropwizard.metrics.DropwizardMeterWrapper;
+import org.apache.flink.util.Collector;
 
 import java.util.Properties;
 
-public class KeyedProvStreamConsumer {
+public class DummyProvStreamConsumer {
 
     public static Properties fileProps;
+
     static {
         fileProps = Utils.loadPropertiesFromFile();
         System.out.println("@@@ kafka properties loaded: " + fileProps.getProperty("bootstrap.servers"));
@@ -40,36 +38,16 @@ public class KeyedProvStreamConsumer {
             return "wasGeneratedBy".equals(edgeType) || "used".equals(edgeType);
         });
 
-        DataStream<Tuple2<String, ObjectNode>> keyedStream = filteredStream.map(new PartitionMapper());
-
-        keyedStream
-                .keyBy(0)
-                .process(new KeyedGroupLocalReducer())
-                .keyBy(0)
-                .process(new KeyedGroupGlobalReducer()).setParallelism(1)
+        filteredStream
+                .flatMap(
+                        (ObjectNode n, Collector<String> out) -> {
+                            String partition = n.get("partition").asText();
+                            out.collect("partition-" + partition);
+                        }
+                ).returns(Types.STRING).setParallelism(1)
                 .writeAsText(fileProps.getProperty("output.file.path")).setParallelism(1);
 
         env.execute();
-    }
-
-    private static class PartitionMapper extends RichMapFunction<ObjectNode, Tuple2<String, ObjectNode>> {
-
-        private Meter meter;
-
-        @Override
-        public void open(Configuration parameters) throws Exception {
-            com.codahale.metrics.Meter meter = new com.codahale.metrics.Meter();
-            this.meter = getRuntimeContext()
-                    .getMetricGroup()
-                    .meter("provMeter", new DropwizardMeterWrapper(meter));
-        }
-
-        @Override
-        public Tuple2<String, ObjectNode> map(ObjectNode value) throws Exception {
-            this.meter.markEvent();
-            return new Tuple2<>(value.get("partition").asText(), value);
-        }
-
     }
 
 }
