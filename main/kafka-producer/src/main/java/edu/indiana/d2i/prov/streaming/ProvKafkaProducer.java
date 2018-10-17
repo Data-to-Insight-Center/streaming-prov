@@ -1,21 +1,3 @@
-/*
- * Copyright 2017 The Trustees of Indiana University
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
- * @author isuriara@indiana.edu
- */
-
 package edu.indiana.d2i.prov.streaming;
 
 import org.apache.kafka.clients.producer.KafkaProducer;
@@ -39,6 +21,7 @@ public class ProvKafkaProducer {
     private static Properties producerProperties;
     private static int numberOfPartitions;
     private static int partitionToWrite;
+    private static int nodeId;
     public int messageCount = 0;
 
     private ProvKafkaProducer() {
@@ -46,6 +29,7 @@ public class ProvKafkaProducer {
         kafkaTopic = producerProperties.getProperty("kafka.topic");
         partitionStrategy = producerProperties.getProperty("partition.strategy");
         partitionToWrite = Integer.parseInt(producerProperties.getProperty("partition.to.write"));
+        nodeId = Integer.parseInt(producerProperties.getProperty("node.id"));
         numberOfPartitions = Integer.parseInt(producerProperties.getProperty("number.of.partitions"));
         System.out.println("#### properties read, partition to write = " + partitionToWrite);
 
@@ -77,6 +61,10 @@ public class ProvKafkaProducer {
         return partitionToWrite;
     }
 
+    public static int getNodeId() {
+        return nodeId;
+    }
+
     public static String getPartitionStrategy() {
         return partitionStrategy;
     }
@@ -84,8 +72,8 @@ public class ProvKafkaProducer {
     private void loadPropertiesFromFile() {
         producerProperties = new Properties();
         try {
-            producerProperties.load(new FileInputStream("/home/isurues/hadoop/kafka.properties"));
-//            producerProperties.load(new FileInputStream("/Users/isuru/research/streaming-prov/kafka-producer/kafka.properties"));
+//            producerProperties.load(new FileInputStream("/home/isurues/hadoop/kafka.properties"));
+            producerProperties.load(new FileInputStream("/home/isuru/2018thesiswork/checkouts/streaming-prov/kafka-producer/kafka.properties"));
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -102,24 +90,24 @@ public class ProvKafkaProducer {
         kafkaProducer.close();
     }
 
-    public void createActivity(String id, String function) {
-        String notification = "{\"id\":\"" + id +
-                "\", \"nodeType\":\"ACTIVITY\", \"type\":\"node\", \"attributes\":{\"function\":\"" +
-                function + "\"}}";
-        kafkaProducer.send(new ProducerRecord<String, String>(kafkaTopic, "line", notification));
-    }
-
-    public void createEntity(String id, String key, String value) {
-        String notification = "{\"id\":\"" + id +
-                "\", \"nodeType\":\"ENTITY\", \"type\":\"node\", \"attributes\":{\"key\":\"" + key +
-                "\", \"value\":\"" + value + "\"}}";
-        kafkaProducer.send(new ProducerRecord<String, String>(kafkaTopic, "line", notification));
-    }
-
-    public void createEntity(String id) {
-        kafkaProducer.send(new ProducerRecord<String, String>(kafkaTopic, "line",
-                "{\"id\":\"" + id + "\", \"nodeType\":\"ENTITY\", \"type\":\"node\"}"));
-    }
+//    public void createActivity(String id, String function) {
+//        String notification = "{\"id\":\"" + id +
+//                "\", \"nodeType\":\"ACTIVITY\", \"type\":\"node\", \"attributes\":{\"function\":\"" +
+//                function + "\"}}";
+//        kafkaProducer.send(new ProducerRecord<String, String>(kafkaTopic, "line", notification));
+//    }
+//
+//    public void createEntity(String id, String key, String value) {
+//        String notification = "{\"id\":\"" + id +
+//                "\", \"nodeType\":\"ENTITY\", \"type\":\"node\", \"attributes\":{\"key\":\"" + key +
+//                "\", \"value\":\"" + value + "\"}}";
+//        kafkaProducer.send(new ProducerRecord<String, String>(kafkaTopic, "line", notification));
+//    }
+//
+//    public void createEntity(String id) {
+//        kafkaProducer.send(new ProducerRecord<String, String>(kafkaTopic, "line",
+//                "{\"id\":\"" + id + "\", \"nodeType\":\"ENTITY\", \"type\":\"node\"}"));
+//    }
 
 //    public void createEdge(String sourceId, String destId, String edgeType) {
 //        String notification = "{\"sourceId\":\"" + sourceId + "\", \"destId\":\"" +
